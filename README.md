@@ -1,6 +1,6 @@
 # Portfolio Rebalancer
 
-Marc Duez
+Marc Duez  
 marcduez@gmail.com
 
 This response to the coding challenge uses JavaScript, with unit tests in Jasmine. There is an HTML GUI that exercises the code (sorry, I know the guidance said no GUI, but it was a quick way to run through some scenarios), and an HTML GUI for the Jasmine test runner.
