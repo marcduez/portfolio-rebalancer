@@ -1,0 +1,191 @@
+<html>
+<head>
+    <title>
+        Portfolio Rebalancer
+    </title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/css/bootstrap.min.css" />
+</head>
+<body>
+    <div class="container">
+        <h3>Portfolio</h3>
+        <table id="Table" class="table">
+            <thead>
+                <tr>
+                    <th style="width: 18%;">Ticker</th>
+                    <th style="width: 18%;">Share Price ($)</th>
+                    <th style="width: 18%;">Shares Owned</th>
+                    <th style="width: 18%;">Actual Allocation (%)</th>
+                    <th style="width: 18%;">Target Allocation (%)</th>
+                    <th style="width: 10%;"></th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+            <tfoot>
+                <tr>
+                    <td class="ticker">
+                        <input type="text" maxlength="4" class="form-control" />
+                    </td>
+                    <td class="sharePrice">
+                        <input type="number" min="0.01" step="0.01" max="1000000.00" class="form-control" />
+                    </td>
+                    <td class="sharesOwned">
+                        <input type="number" min="0" max="999999" class="form-control" />
+                    </td>
+                    <td>&nbsp;</td>
+                    <td>&nbsp;</td>
+                    <td>
+                        <button type="button" class="btn btn-default">
+                            &nbsp;<span class="glyphicon glyphicon-plus"></span>&nbsp;
+                        </button>
+                    </td>
+                </tr>
+            </tfoot>
+        </table>
+        <div class="text-right">
+            Total portfolio value: $<span id="totalValue"></span>
+        </div>
+        <h3>Orders</h3>
+        <div id="orders"></div>
+    </div>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.5/js/bootstrap.min.js"></script>
+    <script src="src/Portfolio.js"></script>
+    <script>
+        $(function () {
+
+            var portfolio = new Portfolio();
+            portfolio.saveInvestment("goog", 52, 98);
+            portfolio.saveInvestment("aapl", 136, 22);
+            portfolio.saveInvestment("tsla", 239, 8);
+
+            var tBodyQuery = $("tbody");
+            var tFootQuery = $("tfoot");
+            var ordersQuery = $("#orders");
+            var totalValueQuery = $("#totalValue");
+
+            var targetAllocations = {"goog": 33, "aapl": 33, "tsla": 34};
+            delete targetAllocations["test"];
+
+            var saveInvestment = function (trQuery) {
+                var ticker = trQuery.data("ticker");
+                var sharePrice = parseFloat(trQuery.find(".sharePrice input").val());
+                if (isNaN(sharePrice))
+                    sharePrice = 0.01;
+                var sharesOwned = parseInt(trQuery.find(".sharesOwned input").val(), 10);
+                if (isNaN(sharesOwned))
+                    sharesOwned = 0;
+
+                portfolio.saveInvestment(ticker, sharesOwned, sharePrice);
+                redraw();
+            };
+
+            var redraw = function () {
+                tBodyQuery.empty();
+
+                var investments = portfolio.getInvestments();
+
+                for (var i = 0, il = investments.length; i < il; ++i) {
+                    var investment = investments[i];
+                    tBodyQuery.append($("<tr></tr>")
+                        .data("ticker", investment.ticker)
+                        .append($("<td></td>")
+                            .append($('<div class="form-control-static"></div>')
+                                .text(investment.ticker.toUpperCase())))
+                        .append($('<td class="sharePrice"></td>')
+                            .append($('<input type="number" min="0.01" step="0.01" max="1000000.00" class="form-control" />')
+                                .val(investment.sharePrice.toFixed(2))
+                                .change(function (e) {
+                                    saveInvestment($(e.target).closest("tr"))
+                                })))
+                        .append($('<td class="sharesOwned"></td>')
+                            .append($('<input type="number" min="0" max="999999" class="form-control" />')
+                                .val(investment.sharesOwned)
+                                .change(function (e) {
+                                    saveInvestment($(e.target).closest("tr"))
+                                })))
+                        .append($("<td></td>")
+                            .append($('<div class="form-control-static"></div>')
+                                .text(investment.actualAllocation.toFixed(2))))
+                        .append($("<td></td>")
+                            .append($('<input type="number" min="0" max="100" class="form-control" />')
+                            .val(targetAllocations[investment.ticker] || "0")
+                            .change(function (e) {
+                                var targetQuery = $(e.target);
+                                var value = parseInt(targetQuery.val(), 10);
+                                if (isNaN(value))
+                                    value = 0;
+                                var ticker = targetQuery.closest("tr").data("ticker");
+                                targetAllocations[ticker] = value;
+                                redraw();
+                            })))
+                        .append($("<td></td>")
+                            .append($('<button type="button" class="btn btn-default">&nbsp;<span class="glyphicon glyphicon-remove"></span>&nbsp;</button>')
+                            .click(function (e) {
+                                var ticker = $(e.target).closest("tr").data("ticker");
+                                delete targetAllocations[ticker];
+                                portfolio.deleteInvestment(ticker);
+                                redraw();
+                            }))));
+                }
+
+                // Update total value.
+                totalValueQuery.text(portfolio.getTotalValue().toFixed(2));
+
+                // Update buy and sell orders.
+                ordersQuery.empty();
+                try {
+                    var orders = portfolio.rebalance(targetAllocations);
+                    if (orders.length === 0) {
+                        ordersQuery.append($('<div class="alert alert-success" role="alert"></div>')
+                            .text("Portfolio is balanced."))
+                    }
+                    else {
+                        var ulQuery = $('<ul class="list-group"></ul>');
+                        for (var i = 0; i < orders.length; ++i) {
+                            ulQuery
+                                .append($('<li class="list-group-item"></li>')
+                                    .text((orders[i].shares < 0 ? "Sell " : "Buy ") + Math.abs(orders[i].shares) + " share" + (Math.abs(orders[i].shares) !== 1 ? "s" :"") + " of " + orders[i].ticker.toUpperCase()));
+                        }
+                        ordersQuery
+                            .append(ulQuery)
+                            .append($('<div class="text-right"></div>')
+                                .append($('<button type="button" class="btn btn-default">Apply Orders</button>')
+                                .click(function () {
+                                    orders = portfolio.rebalance(targetAllocations);
+                                    var investments = portfolio.getInvestments();
+                                    for (var i = 0, il = investments.length; i < il; ++i) {
+                                        var investment = investments[i];
+                                        var filteredOrders = orders.filter(x => x.ticker === investment.ticker);
+                                        if (filteredOrders.length == 0)
+                                            continue;
+                                        portfolio.saveInvestment(investment.ticker, investment.sharesOwned + filteredOrders[0].shares, investment.sharePrice);
+                                    }
+                                    redraw();
+                                })));
+                        }
+
+                }
+                catch (error) {
+                    ordersQuery.append($('<div class="alert alert-danger" role="alert"></div>')
+                        .text(error.message))
+                }
+            }
+
+            tFootQuery.find("button").click(function () {
+                var ticker = tFootQuery.find(".ticker > input").val();
+                var sharePrice = parseFloat(tFootQuery.find(".sharePrice > input").val());
+                if (isNaN(sharePrice))
+                    sharePrice = 0.01;
+                var sharesOwned = parseInt(tFootQuery.find(".sharesOwned > input").val(), 10);
+                if (isNaN(sharesOwned))
+                    sharesOwned = 0;
+                portfolio.saveInvestment(ticker, sharesOwned, sharePrice);
+                redraw();
+                tFootQuery.find("input").val("");
+            });
+
+            redraw();
+        });
+    </script>
+</body>
+</html>
