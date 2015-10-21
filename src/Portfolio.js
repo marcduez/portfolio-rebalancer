@@ -103,7 +103,7 @@ Portfolio.prototype.getTotalValue = function () {
  * Returns the buys and sells required to adjust the portfolio to the provided allocations.
  * Assumes that less money than original portfolio can be spent, but not more.
  * @param {Object} targetAllocations - The target allocations.
- * @returns - The buys and sells to perform.
+ * @returns {Object[]} - The buys and sells to perform.
  * @example
  * portfolio.rebalance({"AAPL": 52, "GOOG": 48})
  *      => [{ticker: "aapl", shares: -12}, {ticker:" goog", shares: 32}]
